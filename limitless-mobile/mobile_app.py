@@ -91,7 +91,7 @@ def local_execute(query, params=()):
 
 def init_db():
     with get_conn() as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS companies (id INTEGER PRIMARY KEY, name TEXT, company_code TEXT UNIQUE)")
+        conn.execute("CREATE TABLE IF NOT EXISTS companies (id INTEGER PRIMARY KEY, name TEXT, company_code TEXT UNIQUE, pay_week_end TEXT DEFAULT 'Sunday')")
         conn.execute("CREATE TABLE IF NOT EXISTS employees (id INTEGER PRIMARY KEY, name TEXT, role TEXT DEFAULT 'Roofer', hourly_rate REAL DEFAULT 0, active INTEGER DEFAULT 1, pin TEXT DEFAULT '', company_id INTEGER DEFAULT 1)")
         conn.execute("CREATE TABLE IF NOT EXISTS jobs (job_id TEXT PRIMARY KEY, client TEXT DEFAULT '', address TEXT DEFAULT '', stage TEXT DEFAULT 'Live Job', company_id INTEGER DEFAULT 1)")
         conn.execute("CREATE TABLE IF NOT EXISTS day_assignments (id INTEGER PRIMARY KEY, job_id TEXT DEFAULT '', client TEXT DEFAULT '', employee TEXT DEFAULT '', date TEXT DEFAULT '', note TEXT DEFAULT '', start_time TEXT DEFAULT '', end_time TEXT DEFAULT '', company_id INTEGER DEFAULT 1)")
@@ -99,6 +99,9 @@ def init_db():
         conn.execute("CREATE TABLE IF NOT EXISTS labour_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, work_date TEXT, job_id TEXT, employee TEXT, hours REAL DEFAULT 0, hourly_rate REAL DEFAULT 0, note TEXT DEFAULT '', company_id INTEGER DEFAULT 1, synced INTEGER DEFAULT 0)")
         conn.execute("CREATE TABLE IF NOT EXISTS job_photos (id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT, photo_date TEXT, caption TEXT DEFAULT '', photo_data BLOB, uploaded_by TEXT DEFAULT '', company_id INTEGER DEFAULT 1, synced INTEGER DEFAULT 0)")
         conn.execute("CREATE TABLE IF NOT EXISTS mobile_variations (id INTEGER PRIMARY KEY AUTOINCREMENT, employee TEXT, job_id TEXT, description TEXT, submitted_at TEXT, status TEXT DEFAULT 'Pending', company_id INTEGER DEFAULT 1, synced INTEGER DEFAULT 0)")
+        conn.execute("CREATE TABLE IF NOT EXISTS weekly_submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, employee TEXT, company_id INTEGER DEFAULT 1, week_start TEXT, week_end TEXT, submitted_at TEXT, status TEXT DEFAULT 'Pending', total_hours REAL DEFAULT 0, days_json TEXT DEFAULT '[]', approved_by TEXT DEFAULT '', approved_at TEXT DEFAULT '')")
+        try: conn.execute("ALTER TABLE companies ADD COLUMN pay_week_end TEXT DEFAULT 'Sunday'")
+        except: pass
         for ddl in [
             "ALTER TABLE clock_events ADD COLUMN approved_by TEXT DEFAULT ''",
             "ALTER TABLE clock_events ADD COLUMN approved_at TEXT DEFAULT ''",
@@ -192,6 +195,71 @@ def sync_to_supabase(employee, company_id):
     except Exception as e: errors.append(str(e))
     return errors
 
+def _get_pay_week_end_day(company_id):
+    """Get the pay week end day name from local companies table."""
+    row = local_fetch("SELECT pay_week_end FROM companies WHERE id=?", (company_id,))
+    if row and row[0]["pay_week_end"]:
+        return str(row[0]["pay_week_end"])
+    return "Sunday"
+
+def _is_submit_day(company_id):
+    """Returns True if today is the pay week end day."""
+    day_name = _get_pay_week_end_day(company_id)
+    day_map = {"Monday":0,"Tuesday":1,"Wednesday":2,"Thursday":3,"Friday":4,"Saturday":5,"Sunday":6}
+    return date.today().weekday() == day_map.get(day_name, 6)
+
+def _get_week_bounds(company_id):
+    """Get the start and end of the current pay week based on pay_week_end setting."""
+    day_name = _get_pay_week_end_day(company_id)
+    day_map = {"Monday":0,"Tuesday":1,"Wednesday":2,"Thursday":3,"Friday":4,"Saturday":5,"Sunday":6}
+    end_dow = day_map.get(day_name, 6)
+    today = date.today()
+    days_since_end = (today.weekday() - end_dow) % 7
+    week_end = today - __import__("datetime").timedelta(days=days_since_end) if days_since_end > 0 else today
+    week_start = week_end - __import__("datetime").timedelta(days=6)
+    return week_start.isoformat(), week_end.isoformat()
+
+def _already_submitted(employee, company_id):
+    """Check if worker already submitted this week."""
+    ws, we = _get_week_bounds(company_id)
+    row = local_fetch("SELECT id, status FROM weekly_submissions WHERE employee=? AND company_id=? AND week_start=? ORDER BY id DESC LIMIT 1", (employee, company_id, ws))
+    if row:
+        return True, row[0]["status"]
+    return False, None
+
+def submit_week_to_supabase(employee, company_id):
+    """Build weekly summary from local labour_logs and post to Supabase."""
+    ws, we = _get_week_bounds(company_id)
+    logs = local_fetch(
+        "SELECT work_date, job_id, hours, note FROM labour_logs WHERE employee=? AND company_id=? AND work_date>=? AND work_date<=? ORDER BY work_date",
+        (employee, company_id, ws, we))
+    if not logs:
+        return False, "No hours recorded for this week."
+    days = []
+    total_hours = 0.0
+    for lg in logs:
+        h = float(lg["hours"] or 0)
+        total_hours += h
+        days.append({"date": lg["work_date"], "job_id": lg["job_id"] or "", "hours": h, "note": lg["note"] or ""})
+    if total_hours <= 0:
+        return False, "No hours to submit."
+    now_str = __import__("datetime").datetime.now().isoformat()
+    payload = {
+        "employee": employee, "company_id": company_id,
+        "week_start": ws, "week_end": we,
+        "submitted_at": now_str, "status": "Pending",
+        "total_hours": round(total_hours, 2),
+        "days_json": json.dumps(days),
+        "approved_by": "", "approved_at": ""
+    }
+    ok, msg = supa_post("weekly_submissions", payload)
+    if ok:
+        local_execute(
+            "INSERT INTO weekly_submissions (employee,company_id,week_start,week_end,submitted_at,status,total_hours,days_json) VALUES (?,?,?,?,?,?,?,?)",
+            (employee, company_id, ws, we, now_str, "Pending", round(total_hours, 2), json.dumps(days)))
+        return True, f"✅ Week submitted — {round(total_hours,1)}h across {len(days)} day(s)."
+    return False, f"Failed to submit: {msg}"
+
 for k, v in [("mobile_user",None),("mobile_company_id",None),("mobile_company_name",""),("mobile_page","login"),("pin_input",""),("login_stage","company"),("selected_employee",None),("company_employees",[])]:
     if k not in st.session_state: st.session_state[k] = v
 
@@ -233,7 +301,7 @@ def lookup_company_code(code):
         for r in supa_get("companies"):
             if str(r.get("company_code","")).upper() == code:
                 cid = r.get("id"); cname = r.get("name","")
-                local_execute("INSERT OR REPLACE INTO companies (id,name,company_code) VALUES (?,?,?)", (cid, cname, r.get("company_code","")))
+                local_execute("INSERT OR REPLACE INTO companies (id,name,company_code,pay_week_end) VALUES (?,?,?,?)", (cid, cname, r.get("company_code",""), r.get("pay_week_end","Sunday")))
                 return cid, cname
     return None, None
 
@@ -332,7 +400,7 @@ st.markdown("<div style='display:flex;justify-content:space-between;align-items:
 
 page = st.session_state.mobile_page
 nav_cols = st.columns(5)
-for col, (icon, label, pg) in zip(nav_cols, [("🏠","Home","home"),("⏱","Clock","clock"),("📷","Photos","photos"),("⚠️","Variation","variation"),("👤","Profile","profile")]):
+for col, (icon, label, pg) in zip(nav_cols, [("🏠","Home","home"),("⏱","Clock","clock"),("📤","Submit","submit"),("⚠️","Variation","variation"),("👤","Profile","profile")]):
     with col:
         color = "#2dd4bf" if page == pg else "#475569"
         st.markdown(f"<div style='text-align:center;font-size:20px'>{icon}</div><div style='text-align:center;font-size:10px;font-weight:700;color:{color};letter-spacing:.05em;text-transform:uppercase'>{label}</div>", unsafe_allow_html=True)
@@ -355,6 +423,17 @@ if page == "home":
     else:
         st.markdown("<div style='background:#111c27;border:1px solid #2a3d4f;border-radius:16px;padding:20px;text-align:center;margin-bottom:16px'><div style='font-size:13px;font-weight:700;color:#475569;letter-spacing:.1em;text-transform:uppercase'>Not On Site</div><div style='font-size:48px;font-weight:900;color:#475569;line-height:1.1'>" + str(today_hours) + "h</div><div style='color:#64748b;font-size:13px'>Ready to start</div></div>", unsafe_allow_html=True)
         if st.button("▶ Clock In", type="primary"): st.session_state.mobile_page = "clock"; st.rerun()
+
+    # Submit week banner on pay week end day
+    if _is_submit_day(company_id) and not _already_submitted(user, company_id)[0]:
+        _pwe_d = _get_pay_week_end_day(company_id)
+        _wk_h_total = local_fetch("SELECT COALESCE(SUM(hours),0) as h FROM labour_logs WHERE employee=? AND company_id=? AND work_date>=?", (user, company_id, _get_week_bounds(company_id)[0]))
+        _wh = float(_wk_h_total[0]["h"] or 0) if _wk_h_total else 0
+        st.markdown(
+            f"<div style='background:linear-gradient(135deg,#0d2a1f,#1a3a2a);border:2px solid #2dd4bf;border-radius:12px;padding:14px;margin-bottom:14px'>"
+            f"<div style='color:#2dd4bf;font-weight:700;font-size:14px'>📤 Time to submit your week!</div>"
+            f"<div style='color:#94a3b8;font-size:13px;margin:4px 0'>{_wh:.1f}h recorded this week · Tap Submit tab to send to director</div>"
+            f"</div>", unsafe_allow_html=True)
 
     st.markdown("<div style='font-size:12px;font-weight:700;color:#2dd4bf;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px'>My Jobs Today</div>", unsafe_allow_html=True)
     assigned = local_fetch("SELECT da.job_id, da.client, da.note, da.start_time, da.end_time, j.address FROM day_assignments da LEFT JOIN jobs j ON j.job_id=da.job_id WHERE da.employee=? AND da.date=? AND da.company_id=?", (user, today_str, company_id))
@@ -407,19 +486,13 @@ elif page == "clock":
             if hours_worked > 0:
                 local_execute("INSERT INTO labour_logs (work_date,job_id,employee,hours,hourly_rate,note,company_id,synced) VALUES (?,?,?,?,?,?,?,0)",
                     (today_str, selected_job, user, hours_worked, rate, clock_note or "", company_id))
-            sync_from_supabase(company_id)
-            errs = sync_to_supabase(user, company_id)
-            if errs: st.warning(f"⚠️ Saved locally — will sync when connected")
-            else: st.success(f"✅ Clocked out — {hours_worked}h logged · Pending approval")
+            st.success(f"✅ Clocked out — {hours_worked}h saved locally. Submit your week on {_get_pay_week_end_day(company_id)}.")
             st.rerun()
     else:
         if st.button("▶  Clock In", type="primary", use_container_width=True):
             local_execute("INSERT INTO clock_events (employee,job_id,event_type,event_time,event_date,note,status,company_id,synced) VALUES (?,?,?,?,?,?,?,?,0)",
                 (user, selected_job, "in", now_sydney().strftime("%H:%M:%S"), today_str, clock_note, "Pending", company_id))
-            sync_from_supabase(company_id)
-            errs = sync_to_supabase(user, company_id)
-            if errs: st.warning(f"⚠️ Sync issue: {errs[0]}")
-            else: st.success(f"✅ Clocked in on {selected_job}")
+            st.success(f"✅ Clocked in on {selected_job}")
             st.rerun()
 
     history = local_fetch("SELECT event_type, event_time, job_id, status FROM clock_events WHERE employee=? AND event_date=? AND company_id=? ORDER BY id", (user, today_str, company_id))
@@ -430,6 +503,93 @@ elif page == "clock":
             label = "IN" if h["event_type"]=="in" else "OUT"
             sc = "#f59e0b" if h["status"]=="Pending" else "#2dd4bf" if h["status"]=="Approved" else "#f43f5e"
             st.markdown(f"<div style='display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #1e2d3d'><span style='color:{color};font-weight:800;font-size:12px;min-width:32px'>{label}</span><span style='color:#e2e8f0;font-size:15px;font-weight:700'>{h['event_time'][:5]}</span><span style='color:#64748b;font-size:13px;flex:1'>{h['job_id']}</span><span style='color:{sc};font-size:11px;font-weight:700'>{h['status'] or 'Pending'}</span></div>", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SUBMIT MY WEEK
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "submit":
+    pwe_day = _get_pay_week_end_day(company_id)
+    ws, we  = _get_week_bounds(company_id)
+    is_sub_day = _is_submit_day(company_id)
+    already_submitted, sub_status = _already_submitted(user, company_id)
+
+    st.markdown(f"<div style='font-size:22px;font-weight:800;color:#e2e8f0;margin-bottom:4px'>📤 Submit My Week</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='color:#64748b;font-size:13px;margin-bottom:16px'>Pay week: {ws} → {we}</div>", unsafe_allow_html=True)
+
+    # Week summary from local labour_logs
+    week_logs = local_fetch(
+        "SELECT work_date, job_id, SUM(hours) as hours FROM labour_logs WHERE employee=? AND company_id=? AND work_date>=? AND work_date<=? GROUP BY work_date, job_id ORDER BY work_date",
+        (user, company_id, ws, we))
+
+    total_h = sum(float(lg["hours"] or 0) for lg in week_logs)
+
+    if not week_logs:
+        st.info("No hours recorded for this week yet. Clock in/out on the Clock tab.")
+    else:
+        st.markdown(f"<div style='background:#1e2d3d;border:1px solid #2a3d4f;border-radius:12px;padding:16px;margin-bottom:16px;text-align:center'><div style='font-size:42px;font-weight:900;color:#2dd4bf'>{total_h:.1f}h</div><div style='color:#64748b;font-size:13px'>total this week</div></div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:12px;font-weight:700;color:#2dd4bf;text-transform:uppercase;margin:12px 0 8px'>Day Breakdown</div>", unsafe_allow_html=True)
+        for lg in week_logs:
+            dh = float(lg["hours"] or 0)
+            try:
+                dlbl = __import__("datetime").date.fromisoformat(lg["work_date"]).strftime("%a %d %b")
+            except Exception:
+                dlbl = lg["work_date"]
+            bar_w = int((dh / 10) * 100) if dh <= 10 else 100
+            st.markdown(
+                f"<div style='background:#111c27;border-radius:8px;padding:10px 14px;margin-bottom:6px'>"
+                f"<div style='display:flex;justify-content:space-between;margin-bottom:4px'>"
+                f"<span style='color:#e2e8f0;font-weight:600'>{dlbl}</span>"
+                f"<span style='color:#2dd4bf;font-weight:700'>{dh:.1f}h</span></div>"
+                f"<div style='color:#475569;font-size:12px;margin-bottom:6px'>{lg['job_id'] or ''}</div>"
+                f"<div style='background:#1e2d3d;border-radius:4px;height:4px'>"
+                f"<div style='background:#2dd4bf;width:{bar_w}%;height:4px;border-radius:4px'></div></div></div>",
+                unsafe_allow_html=True)
+
+    st.divider()
+
+    if already_submitted:
+        sc = {"Approved": "#2dd4bf", "Pending": "#f59e0b", "Rejected": "#f43f5e"}.get(sub_status, "#64748b")
+        si = {"Approved": "✅", "Pending": "⏳", "Rejected": "❌"}.get(sub_status, "")
+        st.markdown(
+            f"<div style='background:#1e2d3d;border:2px solid {sc};border-radius:12px;padding:16px;text-align:center'>"
+            f"<div style='font-size:24px'>{si}</div>"
+            f"<div style='color:{sc};font-weight:700;font-size:16px;margin-top:6px'>Week {sub_status}</div>"
+            f"<div style='color:#64748b;font-size:13px;margin-top:4px'>Your week has been submitted. Director will review and approve.</div></div>",
+            unsafe_allow_html=True)
+        if sub_status == "Rejected":
+            if st.button("🔄 Resubmit Week", type="primary", use_container_width=True):
+                ok, msg = submit_week_to_supabase(user, company_id)
+                if ok: st.success(msg); st.rerun()
+                else: st.error(msg)
+    elif not week_logs:
+        st.button("📤 Submit My Week", disabled=True, use_container_width=True)
+        st.caption("No hours to submit yet.")
+    elif not is_sub_day:
+        st.markdown(
+            f"<div style='background:#111c27;border:1px solid #334155;border-radius:10px;padding:14px;text-align:center;margin-bottom:12px'>"
+            f"<div style='color:#f59e0b;font-size:13px;font-weight:700'>⏰ Submit opens on {pwe_day}</div>"
+            f"<div style='color:#475569;font-size:12px;margin-top:4px'>You can see your week summary above. Come back on {pwe_day} to submit.</div></div>",
+            unsafe_allow_html=True)
+        # Allow early submit just in case
+        if st.button(f"Submit Early (before {pwe_day})", use_container_width=True):
+            ok, msg = submit_week_to_supabase(user, company_id)
+            if ok: st.success(msg); st.rerun()
+            else: st.error(msg)
+    else:
+        st.markdown(
+            f"<div style='background:#0d2a1f;border:1px solid #2dd4bf;border-radius:10px;padding:12px;text-align:center;margin-bottom:12px'>"
+            f"<div style='color:#2dd4bf;font-weight:700'>🎉 It's {pwe_day} — time to submit!</div>"
+            f"<div style='color:#64748b;font-size:12px;margin-top:4px'>Director will review and approve your hours.</div></div>",
+            unsafe_allow_html=True)
+        if st.button("📤 Submit My Week", type="primary", use_container_width=True):
+            with st.spinner("Submitting..."):
+                ok, msg = submit_week_to_supabase(user, company_id)
+            if ok:
+                st.success(msg)
+                st.balloons()
+                st.rerun()
+            else:
+                st.error(msg)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PHOTOS
@@ -493,14 +653,11 @@ elif page == "profile":
     week_total = local_fetch("SELECT SUM(hours) AS h FROM labour_logs WHERE employee=? AND company_id=? AND work_date >= date('now','-7 days')", (user, company_id))
     week_h = float(week_total[0]["h"] or 0) if week_total and week_total[0]["h"] else 0
     st.markdown("<div class='site-card' style='text-align:center;padding:24px'><div style='font-size:52px;font-weight:900;color:#2dd4bf'>" + str(today_hours) + "h</div><div style='color:#64748b;font-size:14px'>today</div><div style='height:1px;background:#2a3d4f;margin:16px 0'></div><div style='font-size:28px;font-weight:700;color:#94a3b8'>" + f"{week_h:.1f}" + "h</div><div style='color:#64748b;font-size:13px'>this week (approved)</div></div>", unsafe_allow_html=True)
-    st.markdown("<div style='color:#475569;font-size:12px;text-align:center;margin:8px 0 16px'>Hours are pending director approval before counting toward your timesheet.</div>", unsafe_allow_html=True)
-    if st.button("🔄 Sync with Office", use_container_width=True):
+    st.markdown("<div style='color:#475569;font-size:12px;text-align:center;margin:8px 0 16px'>Clock in/out saves locally. Submit your week on pay week end for director approval.</div>", unsafe_allow_html=True)
+    if st.button("🔄 Sync Employee & Job Data", use_container_width=True):
         with st.spinner("Syncing..."):
             sync_from_supabase(company_id)
-            errs = sync_to_supabase(user, company_id)
-        if errs:
-            for err in errs: st.error(f"⚠️ {err}")
-        else: st.success("✅ Synced!")
+        st.success("✅ Jobs and employee data updated!")
     st.markdown("<div style='font-size:12px;font-weight:700;color:#2dd4bf;text-transform:uppercase;margin:20px 0 10px'>Change PIN</div>", unsafe_allow_html=True)
     new_pin = st.text_input("New PIN (4-6 digits)", type="password", max_chars=6)
     confirm_pin = st.text_input("Confirm PIN", type="password", max_chars=6)
