@@ -336,11 +336,15 @@ def get_today_hours(employee, company_id):
         elif e["event_type"] == "out" and cin:
             try:
                 cout = datetime.strptime(e["event_time"], "%H:%M:%S")
-                total += (cout - cin).seconds / 3600
+                diff = (cout - cin).total_seconds() / 3600
+                if diff > 0:  # ignore negative diffs from timezone mismatches
+                    total += diff
                 cin = None
             except: pass
     if cin:
-        total += (now_sydney().replace(tzinfo=None) - cin).seconds / 3600
+        diff = (now_sydney().replace(tzinfo=None) - cin).total_seconds() / 3600
+        if diff > 0:
+            total += diff
     return round(total, 1)
 
 def lookup_company_code(code):
@@ -567,20 +571,19 @@ if page == "home":
 elif page == "clock":
     now_str = now_sydney().strftime("%I:%M %p")
 
-    _border_col = "#2dd4bf" if is_clocked_in else "#2a3d4f"
-    _badge_cls  = "status-badge-in" if is_clocked_in else "status-badge-out"
-    _site_label = "🟢 ON SITE" if is_clocked_in else "⚫ OFF SITE"
-    _cin_line   = f"<div style='color:#94a3b8;font-size:13px;margin-top:10px'>Clocked in at {(last_time or '')[:5]} on {last_job or ''}</div>" if is_clocked_in else ""
-    st.markdown(f"""
-    <div style='background:#111c27;border:2px solid {_border_col};
-        border-radius:16px;padding:24px;text-align:center;margin-bottom:20px'>
-        <div style='font-size:52px;font-weight:900;color:#e2e8f0;letter-spacing:-.02em'>{now_str}</div>
-        <div style='margin-top:8px'>
-            <span class='{_badge_cls}'>{_site_label}</span>
-        </div>
-        {_cin_line}
-        <div style='font-size:28px;font-weight:800;color:#2dd4bf;margin-top:8px'>{today_hours}h today</div>
-    </div>""", unsafe_allow_html=True)
+    _border_col  = "#2dd4bf" if is_clocked_in else "#2a3d4f"
+    _badge_cls   = "status-badge-in" if is_clocked_in else "status-badge-out"
+    _site_label  = "🟢 ON SITE" if is_clocked_in else "⚫ OFF SITE"
+    _cin_line    = f"<div style='color:#94a3b8;font-size:13px;margin-top:10px'>Clocked in at {(last_time or '')[:5]} on {last_job or ''}</div>" if is_clocked_in else ""
+    _hours_line  = f"<div style='font-size:28px;font-weight:800;color:#2dd4bf;margin-top:8px'>{today_hours}h today</div>"
+    st.markdown(
+        "<div style='background:#111c27;border:2px solid " + _border_col + ";"
+        "border-radius:16px;padding:24px;text-align:center;margin-bottom:20px'>"
+        "<div style='font-size:52px;font-weight:900;color:#e2e8f0;letter-spacing:-.02em'>" + now_str + "</div>"
+        "<div style='margin-top:8px'><span class='" + _badge_cls + "'>" + _site_label + "</span></div>"
+        + _cin_line + _hours_line +
+        "</div>",
+        unsafe_allow_html=True)
 
     all_jobs = local_fetch(
         "SELECT job_id, client FROM jobs WHERE stage='Live Job' AND company_id=? ORDER BY job_id",
