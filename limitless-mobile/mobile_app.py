@@ -205,13 +205,17 @@ def get_today_hours(employee, company_id):
     today = date.today().isoformat()
     events = local_fetch("SELECT event_type, event_time FROM clock_events WHERE employee=? AND event_date=? AND company_id=? ORDER BY id", (employee, today, company_id))
     total = 0.0; cin = None
+    base = date.today()
     for e in events:
         if e["event_type"] == "in":
-            try: cin = datetime.strptime(e["event_time"], "%H:%M:%S")
+            try:
+                t = datetime.strptime(e["event_time"], "%H:%M:%S").time()
+                cin = datetime.combine(base, t)
             except: pass
         elif e["event_type"] == "out" and cin:
             try:
-                cout = datetime.strptime(e["event_time"], "%H:%M:%S")
+                t = datetime.strptime(e["event_time"], "%H:%M:%S").time()
+                cout = datetime.combine(base, t)
                 diff = (cout - cin).total_seconds() / 3600
                 if diff > 0: total += diff
                 cin = None
