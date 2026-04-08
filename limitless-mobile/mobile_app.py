@@ -106,7 +106,16 @@ def local_execute(query, params=()):
         conn.execute(query, params)
         conn.commit()
 
-def init_db():
+def init_db()
+
+# ── Debug reset tool ──────────────────────────────────────────────────────────
+_qp = st.query_params
+if _qp.get("reset_clocks"):
+    _emp = _qp.get("reset_clocks", "")
+    local_execute("DELETE FROM clock_events WHERE employee=?", (_emp,))
+    local_execute("DELETE FROM labour_logs WHERE employee=?", (_emp,))
+    st.success(f"✅ Cleared local clock events for {_emp}")
+    st.stop():
     with get_conn() as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS companies (
             id INTEGER PRIMARY KEY, name TEXT, company_code TEXT UNIQUE)""")
