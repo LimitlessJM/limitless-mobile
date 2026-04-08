@@ -209,14 +209,15 @@ def _is_submit_day(company_id):
     return date.today().weekday() == day_map.get(day_name, 6)
 
 def _get_week_bounds(company_id):
-    """Get the start and end of the current pay week based on pay_week_end setting."""
+    """Get the start and end of the current running pay week based on pay_week_end setting."""
     day_name = _get_pay_week_end_day(company_id)
     day_map = {"Monday":0,"Tuesday":1,"Wednesday":2,"Thursday":3,"Friday":4,"Saturday":5,"Sunday":6}
     end_dow = day_map.get(day_name, 6)
     today = date.today()
-    days_since_end = (today.weekday() - end_dow) % 7
-    week_end = today - __import__("datetime").timedelta(days=days_since_end) if days_since_end > 0 else today
-    week_start = week_end - __import__("datetime").timedelta(days=6)
+    import datetime as _dt2
+    days_until_end = (end_dow - today.weekday()) % 7
+    week_end = today + _dt2.timedelta(days=days_until_end)
+    week_start = week_end - _dt2.timedelta(days=6)
     return week_start.isoformat(), week_end.isoformat()
 
 def _already_submitted(employee, company_id):
