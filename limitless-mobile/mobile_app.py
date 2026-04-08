@@ -3,6 +3,19 @@ import sqlite3
 import pandas as pd
 from datetime import date, datetime
 import os, requests, json, base64, random, string
+try:
+    from zoneinfo import ZoneInfo
+    SYDNEY_TZ = ZoneInfo("Australia/Sydney")
+except:
+    import pytz
+    SYDNEY_TZ = pytz.timezone("Australia/Sydney")
+
+def now_sydney():
+    try:
+        return datetime.now(SYDNEY_TZ)
+    except:
+        from datetime import timezone, timedelta
+        return datetime.now(timezone(timedelta(hours=11)))
 
 st.set_page_config(
     page_title="Limitless Site",
@@ -327,7 +340,7 @@ def get_today_hours(employee, company_id):
                 cin = None
             except: pass
     if cin:
-        total += (datetime.now() - cin).seconds / 3600
+        total += (now_sydney().replace(tzinfo=None) - cin).seconds / 3600
     return round(total, 1)
 
 def lookup_company_code(code):
@@ -498,7 +511,7 @@ today_str  = date.today().isoformat()
 # ══════════════════════════════════════════════════════════════════════════════
 if page == "home":
     today_nice = date.today().strftime("%A, %d %B")
-    hour = datetime.now().hour
+    hour = now_sydney().hour
     greeting = "Good morning" if hour < 12 else "Good afternoon" if hour < 17 else "G'day"
 
     st.markdown(f"<div style='font-size:24px;font-weight:800;color:#e2e8f0;margin-bottom:2px'>{greeting}, {user.split()[0]}.</div>", unsafe_allow_html=True)
@@ -552,18 +565,20 @@ if page == "home":
 # CLOCK
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "clock":
-    now_str = datetime.now().strftime("%I:%M %p")
+    now_str = now_sydney().strftime("%I:%M %p")
 
+    _border_col = "#2dd4bf" if is_clocked_in else "#2a3d4f"
+    _badge_cls  = "status-badge-in" if is_clocked_in else "status-badge-out"
+    _site_label = "🟢 ON SITE" if is_clocked_in else "⚫ OFF SITE"
+    _cin_line   = f"<div style='color:#94a3b8;font-size:13px;margin-top:10px'>Clocked in at {(last_time or '')[:5]} on {last_job or ''}</div>" if is_clocked_in else ""
     st.markdown(f"""
-    <div style='background:#111c27;border:2px solid {"#2dd4bf" if is_clocked_in else "#2a3d4f"};
+    <div style='background:#111c27;border:2px solid {_border_col};
         border-radius:16px;padding:24px;text-align:center;margin-bottom:20px'>
         <div style='font-size:52px;font-weight:900;color:#e2e8f0;letter-spacing:-.02em'>{now_str}</div>
         <div style='margin-top:8px'>
-            <span class='{"status-badge-in" if is_clocked_in else "status-badge-out"}'>
-                {"🟢 ON SITE" if is_clocked_in else "⚫ OFF SITE"}
-            </span>
+            <span class='{_badge_cls}'>{_site_label}</span>
         </div>
-        {f"<div style='color:#94a3b8;font-size:13px;margin-top:10px'>Clocked in at {(last_time or '')[:5]} on {last_job or ''}</div>" if is_clocked_in else ""}
+        {_cin_line}
         <div style='font-size:28px;font-weight:800;color:#2dd4bf;margin-top:8px'>{today_hours}h today</div>
     </div>""", unsafe_allow_html=True)
 
@@ -617,7 +632,7 @@ elif page == "clock":
             local_execute("""INSERT INTO clock_events
                 (employee,job_id,event_type,event_time,event_date,note,status,company_id,synced)
                 VALUES (?,?,?,?,?,?,?,?,0)""",
-                (user, selected_job, "in", datetime.now().strftime("%H:%M:%S"), today_str, clock_note, "Pending", company_id))
+                (user, selected_job, "in", now_sydney().strftime("%H:%M:%S"), today_str, clock_note, "Pending", company_id))
             sync_from_supabase(company_id)
             errs = sync_to_supabase(user, company_id)
             if errs:
@@ -692,7 +707,7 @@ elif page == "variation":
             local_execute("""INSERT INTO mobile_variations
                 (employee,job_id,description,submitted_at,status,company_id,synced)
                 VALUES (?,?,?,?,?,?,0)""",
-                (user, var_job, var_desc.strip(), datetime.now().isoformat(), "Pending", company_id))
+                (user, var_job, var_desc.strip(), now_sydney().isoformat(), "Pending", company_id))
             errs = sync_to_supabase(user, company_id)
             st.success("✅ Variation submitted — office will review and approve.")
             st.balloons()
