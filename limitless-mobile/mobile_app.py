@@ -498,9 +498,9 @@ elif page == "clock":
 
     if is_clocked_in:
         if st.button("⏹  Clock Out", type="primary", use_container_width=True):
-            now = datetime.now()
-            local_execute("INSERT INTO clock_events (employee,job_id,event_type,event_time,event_date,note,status,synced) VALUES (?,?,?,?,?,?,?,0)",
-                (user, selected_job, "out", now.strftime("%H:%M:%S"), today_str, clock_note, "Pending"))
+            now = now_sydney()
+            local_execute("INSERT INTO clock_events (employee,job_id,event_type,event_time,event_date,note,status,company_id,synced) VALUES (?,?,?,?,?,?,?,?,0)",
+                (user, selected_job, "out", now.strftime("%H:%M:%S"), today_str, clock_note, "Pending", company_id))
             # ── Calculate hours and write labour_logs ──────────────────────
             emp = local_fetch("SELECT hourly_rate FROM employees WHERE name=?", (user,))
             rate = float(emp[0]["hourly_rate"]) if emp else 0.0
