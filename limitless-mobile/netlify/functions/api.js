@@ -1,57 +1,60 @@
 exports.handler = async function(event) {
-  const BASE = 'https://selfless-playfulness-production.up.railway.app';
-
-  const toolMap = {
-    'api_health':             { method: 'GET',  path: '/health',      body: false },
-    'api_my_jobs':            { method: 'GET',  path: '/my-jobs',     body: false },
-    'api_clock_in':           { method: 'POST', path: '/clock-in',    body: false },
-    'api_clock_out':          { method: 'POST', path: '/clock-out',   body: false },
-    'api_get_week':           { method: 'GET',  path: '/get-week',    body: false },
-    'api_submit_week':        { method: 'POST', path: '/submit-week', body: false },
-    'api_login':              { method: 'POST', path: '/login',       body: true  },
-    'api_create_mobile_user': { method: 'POST', path: '/create-user', body: true  },
-  };
+  const RAILWAY = 'https://limitless-mvp-production.up.railway.app';
 
   const params = new URLSearchParams(event.rawQuery || '');
   const tool = params.get('tool');
-  params.delete('tool');
-  const route = toolMap[tool];
 
-  if (!route) {
+  if (!tool || !tool.startsWith('api_')) {
     return {
       statusCode: 400,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({ ok: false, error: 'Unknown tool: ' + tool }),
+      body: JSON.stringify({ ok: false, error: 'Unknown tool' }),
     };
   }
 
-  try {
-    let url, fetchOpts;
+  const qs = params.toString();
+  const url = `${RAILWAY}/?${qs}`;
 
-    if (route.body) {
-      const bodyObj = {};
-      params.forEach((v, k) => { bodyObj[k] = v; });
-      url = BASE + route.path;
-      fetchOpts = {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyObj),
-      };
-    } else {
-      const qs = params.toString();
-      url = BASE + route.path + (qs ? '?' + qs : '');
-      fetchOpts = {
-        method: route.method,
-        headers: { 'Content-Type': 'application/json' },
-      };
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'LJM-Mobile/1.0',
+        'Accept': 'text/html,application/json',
+      },
+      redirect: 'follow',
+    });
+
+    const text = await res.text();
+
+    // Extract JSON from Streamlit response
+    // Streamlit renders JSON in a <pre> tag or as plain text
+    let data = null;
+
+    // Try to find JSON object in the response
+    const patterns = [
+      /\{"ok"[\s\S]*?\}(?=\s*<|\s*$)/,  // JSON starting with {"ok"
+      /(\{[\s\S]*?"ok"[\s\S]*?\})/,       // Any JSON with "ok" key
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        try {
+          data = JSON.parse(match[0]);
+          break;
+        } catch(e) {}
+      }
     }
 
-    const res = await fetch(url, fetchOpts);
-    const text = await res.text();
-    let data;
-    try { data = JSON.parse(text); }
-    catch(e) { data = { ok: false, error: text.slice(0, 200) }; }
-    if (!res.ok && data.detail) data = { ok: false, error: data.detail };
+    // Try parsing the whole response as JSON
+    if (!data) {
+      try { data = JSON.parse(text); } catch(e) {}
+    }
+
+    if (!data) {
+      // Return the raw text for debugging
+      data = { ok: false, error: 'Could not parse response', raw: text.slice(0, 500) };
+    }
 
     return {
       statusCode: 200,
