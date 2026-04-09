@@ -1,6 +1,6 @@
 exports.handler = async function(event) {
-  const RAILWAY = 'https://limitless-mvp-production.up.railway.app';
-  const API_PORT = ':8001';
+  const RAILWAY = 'https://web-production-e8a11.up.railway.app';
+  const API_PORT = '';
   
   // Map tool names to FastAPI endpoints
   const toolMap = {
