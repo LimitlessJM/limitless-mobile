@@ -1,5 +1,5 @@
 exports.handler = async function(event) {
-  const BASE = 'https://web-production-e8a11.up.railway.app';
+  const BASE = 'https://selfless-playfulness-production.up.railway.app';
 
   const toolMap = {
     'api_health':             { method: 'GET',  path: '/health',      body: false },
@@ -29,7 +29,6 @@ exports.handler = async function(event) {
     let url, fetchOpts;
 
     if (route.body) {
-      // POST with JSON body
       const bodyObj = {};
       params.forEach((v, k) => { bodyObj[k] = v; });
       url = BASE + route.path;
@@ -39,7 +38,6 @@ exports.handler = async function(event) {
         body: JSON.stringify(bodyObj),
       };
     } else {
-      // GET or POST with query string
       const qs = params.toString();
       url = BASE + route.path + (qs ? '?' + qs : '');
       fetchOpts = {
