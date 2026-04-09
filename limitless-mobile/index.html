@@ -614,7 +614,12 @@ async function apiCall(tool, params = {}) {
 
   const res = await fetch(url, opts);
   const data = await res.json();
-  if (!res.ok && data.detail) throw new Error(data.detail);
+  if (!res.ok) {
+    const msg = typeof data.detail === 'string' ? data.detail 
+               : Array.isArray(data.detail) ? data.detail.map(e => e.msg).join(', ')
+               : 'Request failed';
+    throw new Error(msg);
+  }
   return data;
 }
 
