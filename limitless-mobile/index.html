@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="LJM" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <title>LJM Field</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0a;
+      --bg2:       #111111;
+      --bg3:       #1a1a1a;
+      --border:    #2a2a2a;
+      --accent:    #e8ff00;
+      --accent2:   #00ffaa;
+      --danger:    #ff3b30;
+      --text:      #f0f0f0;
+      --muted:     #666;
+      --card:      #141414;
+      --radius:    12px;
+      --safe-top:  env(safe-area-inset-top, 0px);
+      --safe-bot:  env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body, #root {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Barlow', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    #root { display: flex; flex-direction: column; }
+
+    /* ── SCREENS ── */
+    .screen {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      overflow-y: auto;
+      padding-top: var(--safe-top);
+      padding-bottom: calc(var(--safe-bot) + 70px);
+      animation: fadeUp 0.25s ease;
+    }
+    .screen.active { display: flex; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .topbar-logo {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: var(--accent);
+    }
+    .topbar-sub {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .topbar-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: right;
+    }
+
+    /* ── BOTTOM NAV ── */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0; right: 0;
+      height: calc(64px + var(--safe-bot));
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      padding-top: 8px;
+      z-index: 100;
+    }
+    .nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'Barlow', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 4px 0;
+      transition: color 0.15s;
+    }
+    .nav-btn.active { color: var(--accent); }
+    .nav-icon { font-size: 22px; line-height: 1; }
+
+    /* ── LOGIN SCREEN ── */
+    #screen-login {
+      justify-content: center;
+      align-items: center;
+      padding: 40px 32px;
+      padding-bottom: 40px;
+      gap: 0;
+    }
+    .login-logo {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 56px;
+      font-weight: 800;
+      letter-spacing: 4px;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .login-tagline {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 48px;
+    }
+    .login-form {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .input-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .input-field {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-family: 'Barlow', sans-serif;
+      font-size: 16px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+    .input-field:focus { border-color: var(--accent); }
+
+    /* ── BUTTONS ── */
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: var(--radius);
+      padding: 16px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 8px;
+      transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary:active { opacity: 0.85; transform: scale(0.98); }
+    .btn-primary:disabled { opacity: 0.4; }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      padding: 16px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      width: 100%;
+      transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-danger:active { opacity: 0.85; transform: scale(0.98); }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      width: 100%;
+      transition: border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-outline:active { border-color: var(--accent); color: var(--accent); }
+
+    /* ── ERROR / STATUS ── */
+    .error-msg {
+      background: rgba(255,59,48,0.12);
+      border: 1px solid rgba(255,59,48,0.3);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--danger);
+      text-align: center;
+    }
+    .success-msg {
+      background: rgba(0,255,170,0.1);
+      border: 1px solid rgba(0,255,170,0.3);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--accent2);
+      text-align: center;
+    }
+
+    /* ── HOME SCREEN ── */
+    .home-content { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    .date-banner {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .date-label {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .date-value {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .clock-badge {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .clock-badge.in  { background: rgba(0,255,170,0.15); color: var(--accent2); border: 1px solid rgba(0,255,170,0.3); }
+    .clock-badge.out { background: rgba(232,255,0,0.1);  color: var(--accent);  border: 1px solid rgba(232,255,0,0.2); }
+    .clock-badge.none{ background: var(--bg3); color: var(--muted); border: 1px solid var(--border); }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 0 2px;
+    }
+
+    .job-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .job-card.selected { border-color: var(--accent); }
+    .job-id {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+    .job-client {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .job-address {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .job-note {
+      font-size: 13px;
+      color: var(--accent);
+      margin-top: 4px;
+    }
+
+    .no-jobs {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .no-jobs-icon { font-size: 40px; margin-bottom: 12px; }
+
+    /* ── CLOCK SECTION ── */
+    .clock-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ── WEEK SCREEN ── */
+    .week-content { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    .week-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+    }
+    .week-nav-btn {
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 22px;
+      cursor: pointer;
+      padding: 4px 8px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .week-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .day-row {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .day-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      width: 48px;
+      color: var(--text);
+    }
+    .day-date { font-size: 12px; color: var(--muted); flex: 1; padding-left: 8px; }
+    .day-hours {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .day-hours.zero { color: var(--muted); }
+    .day-status { font-size: 11px; color: var(--muted); text-align: right; width: 70px; }
+
+    .week-total {
+      background: var(--bg3);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .week-total-label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .week-total-hours {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    /* ── PROFILE SCREEN ── */
+    .profile-content { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+    .profile-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      text-align: center;
+    }
+    .profile-avatar {
+      width: 72px; height: 72px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      color: #000;
+      margin: 0 auto 14px;
+    }
+    .profile-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .profile-role {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .info-row {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .info-row-label { font-size: 13px; color: var(--muted); }
+    .info-row-value { font-size: 13px; font-weight: 600; color: var(--text); }
+
+    /* ── LOADING ── */
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-wrap { padding: 40px; text-align: center; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      top: calc(var(--safe-top) + 16px);
+      left: 50%; transform: translateX(-50%);
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      z-index: 999;
+      white-space: nowrap;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      animation: toastIn 0.2s ease;
+    }
+    .toast.success { border-color: var(--accent2); color: var(--accent2); }
+    .toast.error   { border-color: var(--danger);  color: var(--danger); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════
+const API = 'https://limitless-mvp-production.up.railway.app';
+const STORAGE_TOKEN = 'ljm_token';
+const STORAGE_USER  = 'ljm_user';
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let state = {
+  screen: 'login',       // login | home | week | profile
+  token: null,
+  user: null,            // { name, employee_id, company_id }
+  jobs: [],
+  clockStatus: null,     // null | 'in' | 'out'
+  selectedJob: null,
+  weekStart: null,
+  weekEvents: [],
+  loading: false,
+  error: null,
+  toast: null,
+};
+
+// ═══════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════
+function getWeekStart(offset = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay() + 1 + offset * 7); // Monday
+  return d.toISOString().slice(0, 10);
+}
+
+function formatWeekLabel(ws) {
+  const d = new Date(ws + 'T00:00:00');
+  const end = new Date(d); end.setDate(end.getDate() + 6);
+  const fmt = (x) => x.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  return `${fmt(d)} – ${fmt(end)}`;
+}
+
+function dayRows(weekStart, events) {
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  return days.map((name, i) => {
+    const d = new Date(weekStart + 'T00:00:00');
+    d.setDate(d.getDate() + i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayEvts = events.filter(e => e.event_date === dateStr);
+    // Pair ins/outs
+    let hours = 0;
+    let ins = [], outs = [];
+    dayEvts.forEach(e => e.event_type === 'in' ? ins.push(e.event_time) : outs.push(e.event_time));
+    ins.forEach((t, i) => {
+      if (outs[i]) {
+        const [ih, im] = t.split(':').map(Number);
+        const [oh, om] = outs[i].split(':').map(Number);
+        hours += ((oh * 60 + om) - (ih * 60 + im)) / 60;
+      }
+    });
+    const status = dayEvts.length ? (dayEvts[dayEvts.length-1].event_type === 'in' ? 'Active' : 'Done') : '';
+    return { name, date: dateStr, hours: Math.max(0, hours), status };
+  });
+}
+
+function initials(name) {
+  return (name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
+
+// ═══════════════════════════════════════════════
+// API CALLS
+// ═══════════════════════════════════════════════
+async function apiCall(tool, params = {}) {
+  const qs = new URLSearchParams({ tool, ...params }).toString();
+  // Try Netlify proxy first (avoids CORS)
+  try {
+    const res = await fetch(`/api/?${qs}`);
+    const text = await res.text();
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) return JSON.parse(match[0]);
+  } catch(e) {}
+  // Direct fallback
+  const res = await fetch(`${API}/?${qs}`);
+  const text = await res.text();
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Offline');
+  return JSON.parse(match[0]);
+}
+
+async function doLogin(email, password) {
+  setState({ loading: true, error: null });
+  try {
+    const data = await apiCall('api_login', { email, password });
+    if (!data.ok) throw new Error(data.error);
+    const user = { name: data.name, employee_id: data.employee_id, company_id: data.company_id };
+    localStorage.setItem(STORAGE_TOKEN, data.token);
+    localStorage.setItem(STORAGE_USER, JSON.stringify(user));
+    setState({ token: data.token, user, loading: false });
+    showScreen('home');
+    loadHome();
+  } catch(e) {
+    setState({ loading: false, error: e.message });
+  }
+}
+
+async function loadHome() {
+  setState({ loading: true });
+  try {
+    const data = await apiCall('api_my_jobs', { token: state.token });
+    if (!data.ok) throw new Error(data.error);
+    const jobs = data.jobs || [];
+    setState({
+      jobs,
+      clockStatus: data.clock_status,
+      selectedJob: jobs.length === 1 ? jobs[0].job_id : state.selectedJob,
+      loading: false,
+    });
+  } catch(e) {
+    setState({ loading: false, error: e.message });
+  }
+}
+
+async function doClockIn() {
+  if (!state.selectedJob && state.jobs.length > 0) {
+    showToast('Select a job first', 'error'); return;
+  }
+  setState({ loading: true });
+  try {
+    const data = await apiCall('api_clock_in', { token: state.token, job_id: state.selectedJob || '' });
+    if (!data.ok) throw new Error(data.error);
+    setState({ clockStatus: 'in', loading: false });
+    showToast(`Clocked in at ${data.clocked_in} ✓`, 'success');
+  } catch(e) {
+    setState({ loading: false });
+    showToast(e.message, 'error');
+  }
+}
+
+async function doClockOut() {
+  setState({ loading: true });
+  try {
+    const data = await apiCall('api_clock_out', { token: state.token, job_id: state.selectedJob || '' });
+    if (!data.ok) throw new Error(data.error);
+    setState({ clockStatus: 'out', loading: false });
+    showToast(`Clocked out at ${data.clocked_out} ✓`, 'success');
+  } catch(e) {
+    setState({ loading: false });
+    showToast(e.message, 'error');
+  }
+}
+
+async function loadWeek(weekStart) {
+  setState({ loading: true, weekStart });
+  try {
+    const data = await apiCall('api_get_week', { token: state.token, week_start: weekStart });
+    if (!data.ok) throw new Error(data.error);
+    setState({ weekEvents: data.events || [], loading: false });
+  } catch(e) {
+    setState({ loading: false, error: e.message });
+  }
+}
+
+async function doSubmitWeek() {
+  setState({ loading: true });
+  try {
+    const data = await apiCall('api_submit_week', { token: state.token, week_start: state.weekStart });
+    if (!data.ok) throw new Error(data.error);
+    setState({ loading: false });
+    showToast('Week submitted ✓', 'success');
+  } catch(e) {
+    setState({ loading: false });
+    showToast(e.message, 'error');
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem(STORAGE_TOKEN);
+  localStorage.removeItem(STORAGE_USER);
+  setState({ token: null, user: null, jobs: [], clockStatus: null, screen: 'login' });
+  render();
+}
+
+// ═══════════════════════════════════════════════
+// STATE + RENDER
+// ═══════════════════════════════════════════════
+function setState(patch) {
+  Object.assign(state, patch);
+  render();
+}
+
+function showScreen(name) {
+  state.screen = name;
+  if (name === 'week' && !state.weekStart) {
+    const ws = getWeekStart(0);
+    loadWeek(ws);
+  }
+  render();
+}
+
+function showToast(msg, type = '') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
+function render() {
+  const root = document.getElementById('root');
+  root.innerHTML = '';
+
+  if (state.screen === 'login') {
+    root.appendChild(renderLogin());
+    return;
+  }
+
+  // Authenticated layout
+  root.appendChild(renderTopbar());
+  const screens = ['home','week','profile'];
+  screens.forEach(s => {
+    const el = renderScreen(s);
+    el.classList.toggle('active', state.screen === s);
+    root.appendChild(el);
+  });
+  root.appendChild(renderBottomNav());
+}
+
+function renderLogin() {
+  const el = document.createElement('div');
+  el.className = 'screen active';
+  el.id = 'screen-login';
+  el.style.paddingBottom = '40px';
+  el.innerHTML = `
+    <div class="login-logo">LJM</div>
+    <div class="login-tagline">Field App</div>
+    <div class="login-form">
+      ${state.error ? `<div class="error-msg">${state.error}</div>` : ''}
+      <div class="input-group">
+        <div class="input-label">Email</div>
+        <input class="input-field" id="inp-email" type="email" inputmode="email" autocomplete="email" placeholder="you@company.com" />
+      </div>
+      <div class="input-group">
+        <div class="input-label">Password</div>
+        <input class="input-field" id="inp-pw" type="password" autocomplete="current-password" placeholder="••••••••" />
+      </div>
+      <button class="btn-primary" id="btn-login" ${state.loading ? 'disabled' : ''}>
+        ${state.loading ? 'Signing in...' : 'Sign In'}
+      </button>
+    </div>
+  `;
+  el.querySelector('#btn-login').addEventListener('click', () => {
+    const email = el.querySelector('#inp-email').value.trim();
+    const pw    = el.querySelector('#inp-pw').value;
+    doLogin(email, pw);
+  });
+  // Enter key
+  el.querySelector('#inp-pw').addEventListener('keydown', e => {
+    if (e.key === 'Enter') el.querySelector('#btn-login').click();
+  });
+  return el;
+}
+
+function renderTopbar() {
+  const el = document.createElement('div');
+  el.className = 'topbar';
+  const screenTitles = { home: 'Today', week: 'My Week', profile: 'Profile' };
+  el.innerHTML = `
+    <div>
+      <div class="topbar-logo">LJM</div>
+      <div class="topbar-sub">${screenTitles[state.screen] || ''}</div>
+    </div>
+    <div class="topbar-name">${state.user?.name || ''}</div>
+  `;
+  return el;
+}
+
+function renderBottomNav() {
+  const el = document.createElement('nav');
+  el.className = 'bottom-nav';
+  const tabs = [
+    { id: 'home',    icon: '🏠', label: 'Today' },
+    { id: 'week',    icon: '📅', label: 'Week' },
+    { id: 'profile', icon: '👤', label: 'Profile' },
+  ];
+  tabs.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = `nav-btn ${state.screen === t.id ? 'active' : ''}`;
+    btn.innerHTML = `<span class="nav-icon">${t.icon}</span>${t.label}`;
+    btn.addEventListener('click', () => showScreen(t.id));
+    el.appendChild(btn);
+  });
+  return el;
+}
+
+function renderScreen(name) {
+  const el = document.createElement('div');
+  el.className = 'screen';
+  el.id = `screen-${name}`;
+  if (name === 'home')    el.appendChild(renderHome());
+  if (name === 'week')    el.appendChild(renderWeek());
+  if (name === 'profile') el.appendChild(renderProfile());
+  return el;
+}
+
+function renderHome() {
+  const wrap = document.createElement('div');
+  wrap.className = 'home-content';
+
+  const today = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+  const cs = state.clockStatus;
+  const badgeClass = cs === 'in' ? 'in' : cs === 'out' ? 'out' : 'none';
+  const badgeText  = cs === 'in' ? '🟢 Clocked In' : cs === 'out' ? '⚪ Clocked Out' : 'Not Started';
+
+  wrap.innerHTML = `
+    <div class="date-banner">
+      <div>
+        <div class="date-label">Today</div>
+        <div class="date-value">${today}</div>
+      </div>
+      <div class="clock-badge ${badgeClass}">${badgeText}</div>
+    </div>
+    <div class="section-label">Your Jobs Today</div>
+  `;
+
+  if (state.loading) {
+    wrap.insertAdjacentHTML('beforeend', '<div class="loading-wrap"><div class="spinner"></div></div>');
+    return wrap;
+  }
+
+  if (state.jobs.length === 0) {
+    wrap.insertAdjacentHTML('beforeend', `
+      <div class="no-jobs">
+        <div class="no-jobs-icon">📋</div>
+        No jobs scheduled for today.<br/>Check with your supervisor.
+      </div>
+    `);
+  } else {
+    state.jobs.forEach(job => {
+      const card = document.createElement('div');
+      card.className = `job-card ${state.selectedJob === job.job_id ? 'selected' : ''}`;
+      card.innerHTML = `
+        <div class="job-id">${job.job_id}</div>
+        <div class="job-client">${job.client || '—'}</div>
+        ${job.address ? `<div class="job-address">📍 ${job.address}</div>` : ''}
+        ${job.note    ? `<div class="job-note">💬 ${job.note}</div>` : ''}
+      `;
+      card.addEventListener('click', () => setState({ selectedJob: job.job_id }));
+      wrap.appendChild(card);
+    });
+  }
+
+  // Clock buttons
+  const clockSection = document.createElement('div');
+  clockSection.className = 'clock-section';
+  if (cs !== 'in') {
+    const btn = document.createElement('button');
+    btn.className = 'btn-primary';
+    btn.textContent = 'Clock In';
+    btn.addEventListener('click', doClockIn);
+    clockSection.appendChild(btn);
+  }
+  if (cs === 'in') {
+    const btn = document.createElement('button');
+    btn.className = 'btn-danger';
+    btn.textContent = 'Clock Out';
+    btn.addEventListener('click', doClockOut);
+    clockSection.appendChild(btn);
+  }
+  const refreshBtn = document.createElement('button');
+  refreshBtn.className = 'btn-outline';
+  refreshBtn.textContent = 'Refresh';
+  refreshBtn.addEventListener('click', loadHome);
+  clockSection.appendChild(refreshBtn);
+  wrap.appendChild(clockSection);
+
+  return wrap;
+}
+
+function renderWeek() {
+  const wrap = document.createElement('div');
+  wrap.className = 'week-content';
+
+  const ws = state.weekStart || getWeekStart(0);
+
+  wrap.innerHTML = `
+    <div class="week-nav">
+      <button class="week-nav-btn" id="btn-prev">‹</button>
+      <div class="week-label">${formatWeekLabel(ws)}</div>
+      <button class="week-nav-btn" id="btn-next">›</button>
+    </div>
+  `;
+
+  wrap.querySelector('#btn-prev').addEventListener('click', () => {
+    const d = new Date(ws + 'T00:00:00'); d.setDate(d.getDate() - 7);
+    loadWeek(d.toISOString().slice(0,10));
+  });
+  wrap.querySelector('#btn-next').addEventListener('click', () => {
+    const d = new Date(ws + 'T00:00:00'); d.setDate(d.getDate() + 7);
+    loadWeek(d.toISOString().slice(0,10));
+  });
+
+  if (state.loading) {
+    wrap.insertAdjacentHTML('beforeend', '<div class="loading-wrap"><div class="spinner"></div></div>');
+    return wrap;
+  }
+
+  const rows = dayRows(ws, state.weekEvents);
+  let total = 0;
+  rows.forEach(row => {
+    total += row.hours;
+    const div = document.createElement('div');
+    div.className = 'day-row';
+    div.innerHTML = `
+      <div class="day-name">${row.name}</div>
+      <div class="day-date">${new Date(row.date + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</div>
+      <div class="day-hours ${row.hours === 0 ? 'zero' : ''}">${row.hours > 0 ? row.hours.toFixed(1) + 'h' : '—'}</div>
+      <div class="day-status">${row.status}</div>
+    `;
+    wrap.appendChild(div);
+  });
+
+  const totalDiv = document.createElement('div');
+  totalDiv.className = 'week-total';
+  totalDiv.innerHTML = `
+    <div class="week-total-label">Total Hours</div>
+    <div class="week-total-hours">${total.toFixed(1)}h</div>
+  `;
+  wrap.appendChild(totalDiv);
+
+  const submitBtn = document.createElement('button');
+  submitBtn.className = 'btn-outline';
+  submitBtn.textContent = 'Submit Week for Approval';
+  submitBtn.addEventListener('click', doSubmitWeek);
+  wrap.appendChild(submitBtn);
+
+  return wrap;
+}
+
+function renderProfile() {
+  const wrap = document.createElement('div');
+  wrap.className = 'profile-content';
+  const u = state.user || {};
+  wrap.innerHTML = `
+    <div class="profile-card">
+      <div class="profile-avatar">${initials(u.name)}</div>
+      <div class="profile-name">${u.name || '—'}</div>
+      <div class="profile-role">Field Worker</div>
+    </div>
+    <div class="info-row">
+      <div class="info-row-label">Employee ID</div>
+      <div class="info-row-value">${u.employee_id || '—'}</div>
+    </div>
+    <div class="info-row">
+      <div class="info-row-label">Company ID</div>
+      <div class="info-row-value">${u.company_id || '—'}</div>
+    </div>
+    <div class="info-row">
+      <div class="info-row-label">App Version</div>
+      <div class="info-row-value">1.0.0</div>
+    </div>
+  `;
+  const logoutBtn = document.createElement('button');
+  logoutBtn.className = 'btn-outline';
+  logoutBtn.textContent = 'Sign Out';
+  logoutBtn.addEventListener('click', doLogout);
+  wrap.appendChild(logoutBtn);
+  return wrap;
+}
+
+// ═══════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════
+function boot() {
+  const token = localStorage.getItem(STORAGE_TOKEN);
+  const user  = JSON.parse(localStorage.getItem(STORAGE_USER) || 'null');
+  if (token && user) {
+    state.token = token;
+    state.user  = user;
+    state.screen = 'home';
+    render();
+    loadHome();
+  } else {
+    render();
+  }
+}
+
+boot();
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
