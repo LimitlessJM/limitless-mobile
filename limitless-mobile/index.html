@@ -589,7 +589,7 @@ function initials(name) {
 // ═══════════════════════════════════════════════
 async function apiCall(tool, params = {}) {
   const qs = new URLSearchParams({ tool, ...params }).toString();
-  const res = await fetch(`/.netlify/functions/api?${qs}`);
+  const res = await fetch(`${API}/?${qs}`);
   const text = await res.text();
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('Offline');
