@@ -589,15 +589,7 @@ function initials(name) {
 // ═══════════════════════════════════════════════
 async function apiCall(tool, params = {}) {
   const qs = new URLSearchParams({ tool, ...params }).toString();
-  // Try Netlify proxy first (avoids CORS)
-  try {
-    const res = await fetch(`/api/?${qs}`);
-    const text = await res.text();
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-  } catch(e) {}
-  // Direct fallback
-  const res = await fetch(`${API}/?${qs}`);
+  const res = await fetch(`/.netlify/functions/api?${qs}`);
   const text = await res.text();
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('Offline');
