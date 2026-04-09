@@ -520,7 +520,7 @@
 // ═══════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════
-const API = 'https://limitless-mvp-production.up.railway.app';
+const API = 'https://motivated-benevolence-production-e6d6.up.railway.app';
 const STORAGE_TOKEN = 'ljm_token';
 const STORAGE_USER  = 'ljm_user';
 
@@ -587,13 +587,35 @@ function initials(name) {
 // ═══════════════════════════════════════════════
 // API CALLS
 // ═══════════════════════════════════════════════
+const TOOL_MAP = {
+  'api_login':              { method: 'POST', path: '/login',        body: true  },
+  'api_my_jobs':            { method: 'GET',  path: '/my-jobs',      body: false },
+  'api_clock_in':           { method: 'POST', path: '/clock-in',     body: false },
+  'api_clock_out':          { method: 'POST', path: '/clock-out',    body: false },
+  'api_get_week':           { method: 'GET',  path: '/get-week',     body: false },
+  'api_submit_week':        { method: 'POST', path: '/submit-week',  body: false },
+  'api_create_mobile_user': { method: 'POST', path: '/create-user',  body: true  },
+  'api_health':             { method: 'GET',  path: '/health',       body: false },
+};
+
 async function apiCall(tool, params = {}) {
-  const qs = new URLSearchParams({ tool, ...params }).toString();
-  const res = await fetch(`${API}/?${qs}`);
-  const text = await res.text();
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('Offline');
-  return JSON.parse(match[0]);
+  const route = TOOL_MAP[tool];
+  if (!route) throw new Error('Unknown tool: ' + tool);
+
+  let url, opts;
+  if (route.body) {
+    url = `${API}${route.path}`;
+    opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params) };
+  } else {
+    const qs = new URLSearchParams(params).toString();
+    url = `${API}${route.path}${qs ? '?' + qs : ''}`;
+    opts = { method: route.method, headers: { 'Content-Type': 'application/json' } };
+  }
+
+  const res = await fetch(url, opts);
+  const data = await res.json();
+  if (!res.ok && data.detail) throw new Error(data.detail);
+  return data;
 }
 
 async function doLogin(email, password) {
