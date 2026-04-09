@@ -1,48 +1,60 @@
 exports.handler = async function(event) {
-  const RAILWAY = 'https://web-production-e8a11.up.railway.app';
-  const API_PORT = '';
-  
-  // Map tool names to FastAPI endpoints
+  const BASE = 'https://web-production-e8a11.up.railway.app';
+
   const toolMap = {
-    'api_health':      { method: 'GET',  path: '/health' },
-    'api_my_jobs':     { method: 'GET',  path: '/my-jobs' },
-    'api_clock_in':    { method: 'POST', path: '/clock-in' },
-    'api_clock_out':   { method: 'POST', path: '/clock-out' },
-    'api_get_week':    { method: 'GET',  path: '/get-week' },
-    'api_submit_week': { method: 'POST', path: '/submit-week' },
-    'api_login':       { method: 'POST', path: '/login' },
-    'api_create_user': { method: 'POST', path: '/create-user' },
+    'api_health':             { method: 'GET',  path: '/health',      body: false },
+    'api_my_jobs':            { method: 'GET',  path: '/my-jobs',     body: false },
+    'api_clock_in':           { method: 'POST', path: '/clock-in',    body: false },
+    'api_clock_out':          { method: 'POST', path: '/clock-out',   body: false },
+    'api_get_week':           { method: 'GET',  path: '/get-week',    body: false },
+    'api_submit_week':        { method: 'POST', path: '/submit-week', body: false },
+    'api_login':              { method: 'POST', path: '/login',       body: true  },
+    'api_create_mobile_user': { method: 'POST', path: '/create-user', body: true  },
   };
 
   const params = new URLSearchParams(event.rawQuery || '');
   const tool = params.get('tool');
+  params.delete('tool');
   const route = toolMap[tool];
 
   if (!route) {
-    return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Unknown tool' }) };
+    return {
+      statusCode: 400,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ ok: false, error: 'Unknown tool: ' + tool }),
+    };
   }
 
-  // Build query string without 'tool' param
-  params.delete('tool');
-  const qs = params.toString();
-  const url = `${RAILWAY}${API_PORT}${route.path}${qs ? '?' + qs : ''}`;
-
   try {
-    let fetchOpts = { method: route.method, headers: { 'Content-Type': 'application/json' } };
-    
-    // For POST endpoints that take body params (login, create-user)
-    if (route.method === 'POST' && (tool === 'api_login' || tool === 'api_create_user')) {
-      const body = {};
-      params.forEach((v, k) => body[k] = v);
-      fetchOpts.body = JSON.stringify(body);
-      fetchOpts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
-      const res = await fetch(`${RAILWAY}${API_PORT}${route.path}`, fetchOpts);
-      const data = await res.json();
-      return { statusCode: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(data) };
+    let url, fetchOpts;
+
+    if (route.body) {
+      // POST with JSON body
+      const bodyObj = {};
+      params.forEach((v, k) => { bodyObj[k] = v; });
+      url = BASE + route.path;
+      fetchOpts = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyObj),
+      };
+    } else {
+      // GET or POST with query string
+      const qs = params.toString();
+      url = BASE + route.path + (qs ? '?' + qs : '');
+      fetchOpts = {
+        method: route.method,
+        headers: { 'Content-Type': 'application/json' },
+      };
     }
 
     const res = await fetch(url, fetchOpts);
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch(e) { data = { ok: false, error: text.slice(0, 200) }; }
+    if (!res.ok && data.detail) data = { ok: false, error: data.detail };
+
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
@@ -50,8 +62,8 @@ exports.handler = async function(event) {
     };
   } catch(e) {
     return {
-      statusCode: 500,
-      headers: { 'Access-Control-Allow-Origin': '*' },
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({ ok: false, error: e.message }),
     };
   }
